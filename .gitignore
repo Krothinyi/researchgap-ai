@@ -1,0 +1,52 @@
+## Its purpose is to tell Git which files and folders it should
+#  ignore when tracking changes and uploading your project
+#  to GitHub
+# ==========================================
+# ENVIRONMENT VARIABLES AND SECRETS
+# ==========================================
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+*.pem
+*.key
+
+# ==========================================
+# PYTHON ENVIRONMENT
+# ==========================================
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# ==========================================
+# LOCAL RESEARCH DATA
+# ==========================================
+data/
+data_backup*/
+backups/
+
+# ==========================================
+# DEVELOPMENT AND EXPERIMENTS
+# ==========================================
+archive/
+app_backup.py
+app_before_ui_cleanup.py
+
+# ==========================================
+# EDITOR AND SYSTEM FILES
+# ==========================================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ==========================================
+# LOGS AND TEMPORARY FILES
+# ==========================================
+*.log
+*.tmp
+*.bak
