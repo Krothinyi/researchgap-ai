@@ -1,6 +1,6 @@
 ## 🚀 Live Demo
 
-[Launch ResearchGap AI]( [YOUR_STREAMLIT_URL](https://researchgap-ai-m7mpfzpeimgpgekpez8hb5.streamlit.app/) )
+[Launch ResearchGap AI] link : https://researchgap-ai-m7mpfzpeimgpgekpez8hb5.streamlit.app/ 
 
 Explore research papers, compare methodologies,
 identify potential research gaps, and ask
