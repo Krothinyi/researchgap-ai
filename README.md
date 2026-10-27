@@ -1,4 +1,10 @@
-LIVE DEMO : LINK : https://researchgap-ai-m7mpfzpeimgpgekpez8hb5.streamlit.app/
+## 🚀 Live Demo
+
+[Launch ResearchGap AI]( [YOUR_STREAMLIT_URL](https://researchgap-ai-m7mpfzpeimgpgekpez8hb5.streamlit.app/) )
+
+Explore research papers, compare methodologies,
+identify potential research gaps, and ask
+evidence-backed questions using AI.  
 # ResearchGap AI
 
 ### AI-Powered Research Paper Discovery, Analysis, and Comparison
