@@ -1,11 +1,18 @@
-## 🚀 Live Demo
+## Live Demo
 
-[Launch ResearchGap AI] link : https://researchgap-ai-m7mpfzpeimgpgekpez8hb5.streamlit.app/ 
+**[Launch ResearchGap AI — Public Demo](https://researchgap-ai-2layxqv7aqvwgqkmyzpggb.streamlit.app/)**
 
-Explore research papers, compare methodologies,
-identify potential research gaps, and ask
-evidence-backed questions using AI.  
-# ResearchGap AI
+Explore research papers, compare methodologies, identify potential research gaps, and ask evidence-backed questions using RAG and Gemini.
+
+The public demo includes two preloaded research papers.
+
+**[View Demo Source Code](https://github.com/Krothinyi/researchgap-ai/tree/feature/portfolio-demo)**
+
+### Full Interactive Version
+
+The full version of ResearchGap AI supports PDF uploads, automatic paper downloading and indexing, research comparison, and document management.
+
+**Access to the deployed full application is restricted to authorized users.** Its source code is maintained in the `main` branch.
 
 ### AI-Powered Research Paper Discovery, Analysis, and Comparison
 
