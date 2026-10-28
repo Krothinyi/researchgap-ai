@@ -7,6 +7,11 @@ identify potential research gaps, and ask
 evidence-backed questions using AI.  
 # ResearchGap AI
 
+**[Live Demo](https://researchgap-ai-2layxqv7aqvwgqkmyzpggb.streamlit.app/)** | **[Demo Source Code](https://github.com/Krothinyi/researchgap-ai/tree/feature/portfolio-demo)**
+
+Try research discovery, evidence-backed paper comparison, and RAG question answering. The public demo includes two preloaded research papers.
+
+
 ### AI-Powered Research Paper Discovery, Analysis, and Comparison
 
 ResearchGap AI is a research assistant built with Python,
