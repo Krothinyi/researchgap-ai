@@ -1,4 +1,4 @@
-
+from src.demo_gemini_limiter import check_demo_gemini_limit
 import os
 import re
 import json
@@ -162,11 +162,17 @@ RULES:
 
 USER REQUEST:
 {user_query}
+
 """
+
+    # Check the public demo allowance before
+    # making a Gemini API request.
+    check_demo_gemini_limit()
 
     try:
 
         response = client.models.generate_content(
+
             model=MODEL_NAME,
             contents=instructions,
             config=types.GenerateContentConfig(

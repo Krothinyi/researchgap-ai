@@ -1,4 +1,4 @@
-
+from src.demo_config import QDRANT_PATH
 from pathlib import Path
 from collections import defaultdict
 
@@ -8,7 +8,7 @@ from sentence_transformers import SentenceTransformer
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-QDRANT_PATH = BASE_DIR / "data" / "qdrant_storage"
+
 
 COLLECTION = "research_papers"
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"

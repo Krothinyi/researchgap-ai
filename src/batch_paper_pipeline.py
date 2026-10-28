@@ -1,4 +1,4 @@
-
+from src.demo_config import require_write_permission
 import os
 import json
 from pathlib import Path
@@ -296,6 +296,7 @@ def process_and_index_paper(
     qdrant,
     uploaded_pdf_path=None
 ):
+    require_write_permission("Downloading and indexing research papers")
 
     paper_id = paper["paper_id"]
 

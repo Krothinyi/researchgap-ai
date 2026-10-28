@@ -1,4 +1,7 @@
-
+from src.demo_config import (
+    MANIFEST_PATH,
+    require_write_permission
+)
 import json
 import re
 from pathlib import Path
@@ -12,9 +15,6 @@ from qdrant_client import models
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-MANIFEST_PATH = (
-    BASE_DIR / "data" / "downloaded_papers.json"
-)
 
 PDF_DIR = BASE_DIR / "data" / "pdfs"
 
@@ -42,6 +42,8 @@ def load_manifest():
 # ==========================================
 
 def delete_indexed_paper(paper_id, qdrant):
+
+    require_write_permission("Deleting indexed papers")
 
     manifest = load_manifest()
 

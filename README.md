@@ -193,3 +193,36 @@ evidence-supported literature comparison.
 
 Future work may include improved evidence verification,
 expanded document processing, and deployment support.
+
+## Public Demo Dataset & Attribution
+
+The public portfolio demo uses two preloaded medical RAG
+research papers, containing 160 indexed text passages
+and their vector embeddings.
+
+### Research Papers
+
+1. **Sohn et al. (2025)** ? Rationale-Guided Retrieval
+   Augmented Generation for Medical Question Answering.
+   NAACL 2025.
+   - Source: https://aclanthology.org/2025.naacl-long.635/
+   - License: Creative Commons Attribution 4.0
+   - License URL: https://creativecommons.org/licenses/by/4.0/
+
+2. **Shi et al. (AMIA 2024)** ? MKRAG: Medical Knowledge
+   Retrieval Augmented Generation for Medical Question Answering.
+   - Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC12099378/
+   - Rights: The published open-access notice permits
+     verbatim copying and redistribution of the article.
+
+### Dataset Preparation
+
+ResearchGap AI extracts and chunks source-paper text
+and generates vector embeddings for retrieval.
+
+The demo includes processed text passages and embeddings,
+not the original PDF files.
+
+The original publications belong to their respective
+authors and publishers. ResearchGap AI is an independent
+portfolio project and is not endorsed by the paper authors.

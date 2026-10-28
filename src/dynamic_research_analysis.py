@@ -1,11 +1,16 @@
 import time
 import random
 from google.genai import types, errors
-
+from src.demo_gemini_limiter import check_demo_gemini_limit
 import json
-
+from src.demo_gemini_limiter import DemoGeminiLimitError
 from google.genai import types
 from src.diverse_evidence import retrieve_diverse_evidence
+
+from src.demo_gemini_limiter import (
+    check_demo_gemini_limit,
+    DemoGeminiLimitError
+)
 
 
 ASPECT_QUERIES = {
@@ -37,7 +42,12 @@ def ask_gemini_json(gemini, model_name, prompt):
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
 
+
         try:
+
+            # Reserve one request before contacting Gemini.
+            # Includes retries and only applies in demo mode.
+            check_demo_gemini_limit()
 
             print(
                 f"Gemini request: attempt "
@@ -46,6 +56,7 @@ def ask_gemini_json(gemini, model_name, prompt):
             )
 
             response = gemini.models.generate_content(
+
                 model=model_name,
                 contents=prompt,
                 config=types.GenerateContentConfig(
@@ -616,12 +627,18 @@ EVIDENCE:
                         )
 
 
+
+                except DemoGeminiLimitError:
+                    # Stop processing when the demo limit is reached.
+                    raise
+
                 except Exception as exc:
 
                     print(
                         f"Summary retry failed: {exc}",
                         flush=True
                     )
+
 
                     summary[aspect] = {
                         "summary": fallback_message,

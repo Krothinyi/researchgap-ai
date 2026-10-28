@@ -1,0 +1,16 @@
+{
+  "https://openalex.org/W4411120331": {
+    "paper_id": "https://openalex.org/W4411120331",
+    "title": "Rationale-Guided Retrieval Augmented Generation for Medical Question Answering",
+    "year": 2025,
+    "doi": "https://doi.org/10.18653/v1/2025.naacl-long.635",
+    "pdf_url": "https://aclanthology.org/2025.naacl-long.635.pdf"
+  },
+  "https://openalex.org/W4410761148": {
+    "paper_id": "https://openalex.org/W4410761148",
+    "title": "MKRAG: Medical Knowledge Retrieval Augmented Generation for Medical Question Answering",
+    "year": 2023,
+    "doi": "https://doi.org/10.48550/arxiv.2309.16035",
+    "pdf_url": "https://arxiv.org/pdf/2309.16035"
+  }
+}

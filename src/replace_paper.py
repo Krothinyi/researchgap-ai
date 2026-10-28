@@ -1,4 +1,4 @@
-
+from src.demo_config import require_write_permission
 import json
 import re
 import tempfile
@@ -163,6 +163,8 @@ def replace_indexed_paper(
     embedding_model,
     qdrant
 ):
+
+    require_write_permission("Replacing indexed papers")
 
     # ======================================
     # STEP 1: VERIFY EXISTING PAPER

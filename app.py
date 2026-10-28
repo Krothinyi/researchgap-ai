@@ -1,3 +1,15 @@
+from src.demo_seed_loader import initialize_demo_library
+from src.demo_config import (
+    DEMO_MODE,
+    require_write_permission,
+    QDRANT_PATH,
+    MANIFEST_PATH,
+)
+
+from src.demo_gemini_limiter import (
+    check_demo_gemini_limit,
+    DemoGeminiLimitError
+)
 from src.replace_paper import replace_indexed_paper
 from src.index_single_paper import index_paper
 from src.parse_dynamic_papers import parse_pdf
@@ -31,7 +43,6 @@ load_dotenv(BASE_DIR / ".env")
 
 API_KEY = os.getenv("GEMINI_API_KEY")
 
-QDRANT_PATH = BASE_DIR / "data" / "qdrant_storage"
 COLLECTION_NAME = "research_papers"
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 GEMINI_MODEL = "gemini-3.5-flash-lite"
@@ -120,8 +131,13 @@ with st.expander("🔎 Discover New Research Papers"):
 
                 st.session_state.discovered_papers = papers
 
+
+            except DemoGeminiLimitError as e:
+                st.warning(str(e))
+
             except Exception as e:
                 st.error(f"Research search failed: {e}")
+
 
     # ======================================
     # 4. DISPLAY PARSED REQUEST
@@ -278,6 +294,25 @@ try:
         )
 
 
+    # ==========================================
+    # INITIALIZE PUBLIC DEMO LIBRARY
+    # ==========================================
+
+    if DEMO_MODE:
+
+        demo_result = initialize_demo_library(
+            qdrant=qdrant,
+            collection_name=COLLECTION_NAME
+        )
+
+        st.success(
+            f"Demo library ready: "
+            f"{demo_result['papers']} research papers, "
+            f"{demo_result['vectors']} indexed passages."
+        )
+
+
+
 except Exception as e:
     st.error(f"Initialization failed: {e}")
     st.stop()
@@ -298,9 +333,7 @@ with st.expander("🔬 Compare & Analyze Research"):
         "their methodologies, findings, and limitations."
     )
 
-    manifest_path = (
-        BASE_DIR / "data" / "downloaded_papers.json"
-    )
+    manifest_path = MANIFEST_PATH
 
     if manifest_path.exists():
         manifest = json.loads(
@@ -439,11 +472,15 @@ with st.expander("🔬 Compare & Analyze Research"):
                         "dynamic_analysis_report"
                     ] = report
 
-                except Exception as e:
 
+                except DemoGeminiLimitError as e:
+                    st.warning(str(e))
+
+                except Exception as e:
                     st.error(
                         f"Research comparison failed: {e}"
                     )
+
 
         # ----------------------------------
         # 5. DISPLAY COMPARISON RESULTS
@@ -822,12 +859,19 @@ with download_section, st.expander("⬇️ Download & Index Papers"):
             # ----------------------------------
             # 2. UPLOAD PDF
             # ----------------------------------
+            if DEMO_MODE:
+                st.info(
+                    "PDF uploads are disabled in this public demo. "
+                    "You can explore the example research papers instead."
+                )
 
             uploaded_pdf = st.file_uploader(
                 "Choose PDF file",
                 type=["pdf"],
-                key="research_pdf_upload"
+                key="research_pdf_upload",
+                disabled=DEMO_MODE
             )
+
 
             # ----------------------------------
             # 3. UPLOAD AND INDEX
@@ -835,9 +879,9 @@ with download_section, st.expander("⬇️ Download & Index Papers"):
 
             if st.button(
                 "Upload & Index Paper",
-                key="manual_upload_index_button"
+                key="manual_upload_index_button",
+                disabled=DEMO_MODE
             ):
-
                 if uploaded_pdf is None:
 
                     st.warning(
@@ -854,11 +898,18 @@ with download_section, st.expander("⬇️ Download & Index Papers"):
                         "in Qdrant."
                     )
 
+
                 else:
 
                     try:
 
+                        require_write_permission(
+                            "Uploading research PDFs"
+                        )
+
                         pdf_bytes = uploaded_pdf.getvalue()
+
+
 
                         # Check PDF header
                         if not pdf_bytes.startswith(b"%PDF-"):
@@ -1048,12 +1099,14 @@ with download_section, st.expander("⬇️ Download & Index Papers"):
                 )
             )
 
+
             if st.button(
                 "Delete Selected Paper",
                 type="primary",
-                disabled=not confirm_delete,
+                disabled=DEMO_MODE or not confirm_delete,
                 key="delete_indexed_paper_button"
             ):
+
 
                 try:
 
@@ -1140,10 +1193,12 @@ with download_section, st.expander("⬇️ Download & Index Papers"):
                 replace_paper_id.rstrip("/").split("/")[-1]
             )
 
+
             replacement_pdf = st.file_uploader(
                 "Upload the corrected research PDF",
                 type=["pdf"],
-                key=f"replace_pdf_{replace_short_id}"
+                key=f"replace_pdf_{replace_short_id}",
+                disabled=DEMO_MODE
             )
 
             st.warning(
@@ -1158,21 +1213,30 @@ with download_section, st.expander("⬇️ Download & Index Papers"):
                 key=f"confirm_replace_{replace_short_id}"
             )
 
+
             if st.button(
                 "Replace PDF & Reindex",
                 disabled=(
-                    replacement_pdf is None
+                    DEMO_MODE
+                    or replacement_pdf is None
                     or not confirm_replace
                 ),
                 key="replace_pdf_button"
             ):
 
+
                 created_pdf = False
                 saved_pdf_path = None
 
+
                 try:
 
+                    require_write_permission(
+                        "Replacing research PDFs"
+                    )
+
                     pdf_bytes = replacement_pdf.getvalue()
+
 
                     if not pdf_bytes.startswith(b"%PDF-"):
                         raise ValueError(
@@ -1359,10 +1423,13 @@ with download_section, st.expander("⬇️ Download & Index Papers"):
             key="auto_research_question"
         )
 
+
         if st.button(
             "Download, Index & Analyze",
-            key="auto_analyze_button"
+            key="auto_analyze_button",
+            disabled=DEMO_MODE
         ):
+
 
             # Clear previous results
             st.session_state.pop(
@@ -1707,10 +1774,18 @@ with download_section, st.expander("⬇️ Download & Index Papers"):
                         )
 
 
+
         if st.button(
             "Download and Index Selected Papers",
-            key="batch_index_button"
+            key="batch_index_button",
+            disabled=DEMO_MODE
         ):
+            if DEMO_MODE:
+                st.info(
+                    "Public demo mode: Downloading and indexing new papers "
+                    "is disabled. Use the two preloaded research papers "
+                    "under Compare & Analyze Research instead."
+                )
 
             if not selected_ids:
 
@@ -1933,10 +2008,15 @@ USER QUESTION:
 ANSWER:
 """
 
+
+# Enforce demo request limits before calling Gemini.
+    check_demo_gemini_limit()
+
     response = gemini.models.generate_content(
         model=GEMINI_MODEL,
         contents=prompt
     )
+
 
     return response.text or "No answer generated.", sources
 
@@ -2075,6 +2155,10 @@ if question:
                 "content": answer,
                 "sources": sources
             })
+
+
+        except DemoGeminiLimitError as e:
+            st.warning(str(e))
 
         except Exception as e:
             st.error(f"Error: {e}")

@@ -1,4 +1,4 @@
-
+from src.demo_config import require_write_permission
 import json
 import sys
 import uuid
@@ -79,6 +79,8 @@ def split_passages(text, tokenizer, token_limit):
 # ==========================================
 
 def index_paper(short_id, embedding_model, qdrant):
+
+    require_write_permission("Indexing research papers")
 
     manifest = json.loads(
         MANIFEST_PATH.read_text(encoding="utf-8")
