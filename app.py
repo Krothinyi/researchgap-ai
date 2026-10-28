@@ -799,140 +799,457 @@ if pending_paper:
 # BATCH DOWNLOAD AND INDEX RESEARCH PAPERS
 # ==========================================
 
-with download_section, st.expander("⬇️ Download & Index Papers"):
-
-    st.write(
-    "Select 1 to 3 discovered research papers. "
-    "Download and index them individually or together. "
-    "Select at least 2 papers to run an automatic "
-    "research comparison and gap analysis."
-    )
-
-
-    # ==========================================
-    # MANUAL RESEARCH PDF UPLOAD
-    # ==========================================
-
-    with st.expander("📤 Upload Research PDF Manually"):
+if not DEMO_MODE:
+    with download_section, st.expander("⬇️ Download & Index Papers"):
 
         st.write(
-            "If a paper has no accessible PDF link, "
-            "download an authorized copy manually "
-            "and upload it here."
+        "Select 1 to 3 discovered research papers. "
+        "Download and index them individually or together. "
+        "Select at least 2 papers to run an automatic "
+        "research comparison and gap analysis."
         )
 
-        # Include ALL discovered papers,
-        # even those without a PDF URL.
 
-        upload_discovered = st.session_state.get(
-            "discovered_papers",
-            []
-        )
+        # ==========================================
+        # MANUAL RESEARCH PDF UPLOAD
+        # ==========================================
 
-        upload_papers = {
-            paper["paper_id"]: paper
-            for paper in upload_discovered
-            if paper.get("paper_id")
-        }
+        with st.expander("📤 Upload Research PDF Manually"):
 
-        if not upload_papers:
-
-            st.info(
-                "Discover research papers first."
+            st.write(
+                "If a paper has no accessible PDF link, "
+                "download an authorized copy manually "
+                "and upload it here."
             )
 
-        else:
+            # Include ALL discovered papers,
+            # even those without a PDF URL.
 
-            # ----------------------------------
-            # 1. SELECT PAPER
-            # ----------------------------------
-
-            upload_paper_id = st.selectbox(
-                "Select the research paper",
-                options=list(upload_papers.keys()),
-                format_func=lambda pid: (
-                    upload_papers[pid]["title"]
-                ),
-                key="manual_upload_paper"
+            upload_discovered = st.session_state.get(
+                "discovered_papers",
+                []
             )
 
-            # ----------------------------------
-            # 2. UPLOAD PDF
-            # ----------------------------------
-            if DEMO_MODE:
+            upload_papers = {
+                paper["paper_id"]: paper
+                for paper in upload_discovered
+                if paper.get("paper_id")
+            }
+
+            if not upload_papers:
+
                 st.info(
-                    "PDF uploads are disabled in this public demo. "
-                    "You can explore the example research papers instead."
+                    "Discover research papers first."
                 )
 
-            uploaded_pdf = st.file_uploader(
-                "Choose PDF file",
-                type=["pdf"],
-                key="research_pdf_upload",
-                disabled=DEMO_MODE
+            else:
+
+                # ----------------------------------
+                # 1. SELECT PAPER
+                # ----------------------------------
+
+                upload_paper_id = st.selectbox(
+                    "Select the research paper",
+                    options=list(upload_papers.keys()),
+                    format_func=lambda pid: (
+                        upload_papers[pid]["title"]
+                    ),
+                    key="manual_upload_paper"
+                )
+
+                # ----------------------------------
+                # 2. UPLOAD PDF
+                # ----------------------------------
+                if DEMO_MODE:
+                    st.info(
+                        "PDF uploads are disabled in this public demo. "
+                        "You can explore the example research papers instead."
+                    )
+
+                uploaded_pdf = st.file_uploader(
+                    "Choose PDF file",
+                    type=["pdf"],
+                    key="research_pdf_upload",
+                    disabled=DEMO_MODE
+                )
+
+
+                # ----------------------------------
+                # 3. UPLOAD AND INDEX
+                # ----------------------------------
+
+                if st.button(
+                    "Upload & Index Paper",
+                    key="manual_upload_index_button",
+                    disabled=DEMO_MODE
+                ):
+                    if uploaded_pdf is None:
+
+                        st.warning(
+                            "Please select a PDF file."
+                        )
+
+                    elif is_paper_indexed(
+                        upload_paper_id,
+                        qdrant
+                    ):
+
+                        st.info(
+                            "This paper is already indexed "
+                            "in Qdrant."
+                        )
+
+
+                    else:
+
+                        try:
+
+                            require_write_permission(
+                                "Uploading research PDFs"
+                            )
+
+                            pdf_bytes = uploaded_pdf.getvalue()
+
+
+
+                            # Check PDF header
+                            if not pdf_bytes.startswith(b"%PDF-"):
+                                raise ValueError(
+                                    "Invalid PDF file."
+                                )
+
+                            # Maximum 50 MB
+                            if len(pdf_bytes) > 50 * 1024 * 1024:
+                                raise ValueError(
+                                    "PDF exceeds 50 MB."
+                                )
+
+                            short_id = (
+                                upload_paper_id
+                                .rstrip("/")
+                                .split("/")[-1]
+                            )
+
+                            # Save PDF locally
+                            pdf_dir = (
+                                BASE_DIR / "data" / "pdfs"
+                            )
+
+                            pdf_dir.mkdir(
+                                parents=True,
+                                exist_ok=True
+                            )
+
+                            checksum = hashlib.sha256(
+                                pdf_bytes
+                            ).hexdigest()[:12]
+
+                            pdf_path = (
+                                pdf_dir /
+                                f"{short_id}_{checksum}.pdf"
+                            )
+
+                            if not pdf_path.exists():
+                                pdf_path.write_bytes(
+                                    pdf_bytes
+                                )
+
+                            paper = upload_papers[
+                                upload_paper_id
+                            ]
+
+                            # ----------------------------------
+                            # 4. PROCESS AND INDEX
+                            # ----------------------------------
+
+                            with st.spinner(
+                                "Extracting text, generating "
+                                "embeddings and indexing..."
+                            ):
+
+                                result = process_and_index_paper(
+                                    paper,
+                                    embedding_model,
+                                    qdrant,
+                                    uploaded_pdf_path=pdf_path
+                                )
+
+                            st.success(
+                                "Research PDF successfully indexed!"
+                            )
+
+                            st.write(
+                                "Paper:", paper["title"]
+                            )
+
+                            st.write(
+                                "Indexed passages:",
+                                result["passages"]
+                            )
+
+                            st.write(
+                                "Pages processed:",
+                                result["pages"]
+                            )
+
+                            st.write(
+                                "Chunks created:",
+                                result["chunks"]
+                            )
+
+                            st.info(
+                                "The paper is now available "
+                                "for research comparison. "
+                                "Refresh the app if it does "
+                                "not immediately appear."
+                            )
+
+                        except Exception as e:
+
+                            st.error(
+                                f"PDF upload failed: {e}"
+                            )
+
+        st.divider()
+
+
+        # ==========================================
+        # MANAGE INDEXED RESEARCH PAPERS
+        # ==========================================
+
+        with st.expander("🗑️ Manage Indexed Papers"):
+
+            st.write(
+                "Delete an incorrectly uploaded or unwanted "
+                "research paper and its indexed data."
             )
 
+            stored_papers = load_manifest()
 
-            # ----------------------------------
-            # 3. UPLOAD AND INDEX
-            # ----------------------------------
+            if not stored_papers:
 
-            if st.button(
-                "Upload & Index Paper",
-                key="manual_upload_index_button",
-                disabled=DEMO_MODE
-            ):
-                if uploaded_pdf is None:
+                st.info(
+                    "No locally stored papers available."
+                )
 
-                    st.warning(
-                        "Please select a PDF file."
+            else:
+
+                delete_paper_id = st.selectbox(
+                    "Select the paper to delete",
+                    options=list(stored_papers.keys()),
+                    format_func=lambda pid: (
+                        stored_papers[pid]["title"]
+                    ),
+                    key="delete_paper_selector"
+                )
+
+                selected_paper = stored_papers[
+                    delete_paper_id
+                ]
+
+                paper_filter = models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="paper_id",
+                            match=models.MatchValue(
+                                value=delete_paper_id
+                            )
+                        )
+                    ]
+                )
+
+                vector_count = qdrant.count(
+                    collection_name=COLLECTION_NAME,
+                    count_filter=paper_filter,
+                    exact=True
+                ).count
+
+                st.write(
+                    "**Selected paper:**",
+                    selected_paper["title"]
+                )
+
+                st.write(
+                    "**Indexed passages:**",
+                    vector_count
+                )
+
+                st.write(
+                    "**Stored PDF:**",
+                    selected_paper.get(
+                        "local_pdf", "Not recorded"
                     )
+                )
 
-                elif is_paper_indexed(
-                    upload_paper_id,
-                    qdrant
+                st.warning(
+                    "Deleting this paper will remove its "
+                    "Qdrant vectors, manifest entry, and "
+                    "associated local files when safe. "
+                    "This action cannot be undone from the app."
+                )
+
+                # Use a paper-specific checkbox key
+                # so confirmation for one paper does
+                # not authorize deleting another.
+                confirm_delete = st.checkbox(
+                    "I confirm that I want to delete "
+                    "this selected paper.",
+                    key=(
+                        "confirm_delete_" +
+                        delete_paper_id.split("/")[-1]
+                    )
+                )
+
+
+                if st.button(
+                    "Delete Selected Paper",
+                    type="primary",
+                    disabled=DEMO_MODE or not confirm_delete,
+                    key="delete_indexed_paper_button"
                 ):
 
-                    st.info(
-                        "This paper is already indexed "
-                        "in Qdrant."
-                    )
+
+                    try:
+
+                        with st.spinner(
+                            "Deleting selected research paper..."
+                        ):
+
+                            result = delete_indexed_paper(
+                                delete_paper_id,
+                                qdrant
+                            )
+
+                        # Invalidate old analysis results.
+                        st.session_state.pop(
+                            "dynamic_analysis_report", None
+                        )
+
+                        st.session_state.pop(
+                            "auto_analysis_report", None
+                        )
+
+                        # Clear Q&A messages that might
+                        # contain citations to deleted data.
+                        st.session_state.pop(
+                            "messages", None
+                        )
+
+                        st.session_state[
+                            "paper_delete_result"
+                        ] = result
+
+                        st.rerun()
+
+                    except Exception as e:
+
+                        st.error(
+                            f"Paper deletion failed: {e}"
+                        )
+
+            # Display deletion result after rerun
+            if "paper_delete_result" in st.session_state:
+
+                result = st.session_state.pop(
+                    "paper_delete_result"
+                )
+
+                st.success(
+                    f"Deleted: {result['title']}"
+                )
+
+                st.write(
+                    "Qdrant vectors removed:",
+                    result["deleted_vectors"]
+                )
+
+                st.write(
+                    "Local files removed:",
+                    len(result["deleted_files"])
+                )
+
+                for warning in result.get("warnings", []):
+                    st.warning(warning)
 
 
-                else:
+            # ==========================================
+            # REPLACE AN EXISTING RESEARCH PDF
+            # ==========================================
+
+            st.divider()
+            st.markdown("### Replace an Existing PDF")
+
+            if stored_papers:
+
+                replace_paper_id = st.selectbox(
+                    "Select paper to replace",
+                    options=list(stored_papers.keys()),
+                    format_func=lambda pid: (
+                        stored_papers[pid]["title"]
+                    ),
+                    key="replace_paper_selector"
+                )
+
+                replace_short_id = (
+                    replace_paper_id.rstrip("/").split("/")[-1]
+                )
+
+
+                replacement_pdf = st.file_uploader(
+                    "Upload the corrected research PDF",
+                    type=["pdf"],
+                    key=f"replace_pdf_{replace_short_id}",
+                    disabled=DEMO_MODE
+                )
+
+                st.warning(
+                    "Replacing a PDF will rebuild its Qdrant index. "
+                    "Make sure the uploaded PDF matches "
+                    "the selected research paper."
+                )
+
+                confirm_replace = st.checkbox(
+                    "I confirm that the uploaded PDF belongs "
+                    "to the selected paper.",
+                    key=f"confirm_replace_{replace_short_id}"
+                )
+
+
+                if st.button(
+                    "Replace PDF & Reindex",
+                    disabled=(
+                        DEMO_MODE
+                        or replacement_pdf is None
+                        or not confirm_replace
+                    ),
+                    key="replace_pdf_button"
+                ):
+
+
+                    created_pdf = False
+                    saved_pdf_path = None
+
 
                     try:
 
                         require_write_permission(
-                            "Uploading research PDFs"
+                            "Replacing research PDFs"
                         )
 
-                        pdf_bytes = uploaded_pdf.getvalue()
+                        pdf_bytes = replacement_pdf.getvalue()
 
 
-
-                        # Check PDF header
                         if not pdf_bytes.startswith(b"%PDF-"):
                             raise ValueError(
                                 "Invalid PDF file."
                             )
 
-                        # Maximum 50 MB
                         if len(pdf_bytes) > 50 * 1024 * 1024:
                             raise ValueError(
-                                "PDF exceeds 50 MB."
+                                "PDF exceeds the 50 MB limit."
                             )
 
-                        short_id = (
-                            upload_paper_id
-                            .rstrip("/")
-                            .split("/")[-1]
-                        )
-
-                        # Save PDF locally
-                        pdf_dir = (
-                            BASE_DIR / "data" / "pdfs"
-                        )
+                        pdf_dir = BASE_DIR / "data" / "pdfs"
 
                         pdf_dir.mkdir(
                             parents=True,
@@ -943,528 +1260,556 @@ with download_section, st.expander("⬇️ Download & Index Papers"):
                             pdf_bytes
                         ).hexdigest()[:12]
 
-                        pdf_path = (
+                        saved_pdf_path = (
                             pdf_dir /
-                            f"{short_id}_{checksum}.pdf"
+                            f"{replace_short_id}_{checksum}.pdf"
                         )
 
-                        if not pdf_path.exists():
-                            pdf_path.write_bytes(
+                        if not saved_pdf_path.exists():
+
+                            saved_pdf_path.write_bytes(
                                 pdf_bytes
                             )
 
-                        paper = upload_papers[
-                            upload_paper_id
-                        ]
+                            created_pdf = True
+
+                        elif saved_pdf_path.read_bytes() != pdf_bytes:
+
+                            raise RuntimeError(
+                                "Stored PDF checksum collision."
+                            )
 
                         # ----------------------------------
-                        # 4. PROCESS AND INDEX
+                        # RUN REPLACEMENT BACKEND
                         # ----------------------------------
 
                         with st.spinner(
-                            "Extracting text, generating "
-                            "embeddings and indexing..."
+                            "Replacing PDF and rebuilding index..."
                         ):
 
-                            result = process_and_index_paper(
-                                paper,
-                                embedding_model,
-                                qdrant,
-                                uploaded_pdf_path=pdf_path
+                            result = replace_indexed_paper(
+                                paper_id=replace_paper_id,
+                                uploaded_pdf_path=saved_pdf_path,
+                                embedding_model=embedding_model,
+                                qdrant=qdrant
                             )
 
-                        st.success(
-                            "Research PDF successfully indexed!"
-                        )
+                        # Clear old research reports
+                        for key in (
+                            "dynamic_analysis_report",
+                            "auto_analysis_report",
+                            "messages"
+                        ):
 
-                        st.write(
-                            "Paper:", paper["title"]
-                        )
+                            st.session_state.pop(
+                                key, None
+                            )
 
-                        st.write(
-                            "Indexed passages:",
-                            result["passages"]
-                        )
+                        st.session_state[
+                            "paper_replace_result"
+                        ] = result
 
-                        st.write(
-                            "Pages processed:",
-                            result["pages"]
-                        )
-
-                        st.write(
-                            "Chunks created:",
-                            result["chunks"]
-                        )
-
-                        st.info(
-                            "The paper is now available "
-                            "for research comparison. "
-                            "Refresh the app if it does "
-                            "not immediately appear."
-                        )
+                        st.rerun()
 
                     except Exception as e:
 
+                        # Delete a newly saved PDF only
+                        # if the replacement did not succeed.
+                        if (
+                            created_pdf
+                            and saved_pdf_path is not None
+                        ):
+
+                            saved_pdf_path.unlink(
+                                missing_ok=True
+                            )
+
                         st.error(
-                            f"PDF upload failed: {e}"
+                            f"PDF replacement failed: {e}"
                         )
 
-    st.divider()
+            # ==========================================
+            # DISPLAY REPLACEMENT RESULT
+            # ==========================================
+
+            if "paper_replace_result" in st.session_state:
+
+                replacement_result = st.session_state.pop(
+                    "paper_replace_result"
+                )
+
+                st.success(
+                    "Research PDF replaced successfully!"
+                )
+
+                st.write(
+                    "Paper:",
+                    replacement_result["title"]
+                )
+
+                col1, col2 = st.columns(2)
+
+                col1.metric(
+                    "Previous Vectors",
+                    replacement_result["old_vectors"]
+                )
+
+                col2.metric(
+                    "New Vectors",
+                    replacement_result["new_vectors"]
+                )
+
+                st.write(
+                    "Pages:",
+                    replacement_result["pages"]
+                )
+
+                st.write(
+                    "Chunks:",
+                    replacement_result["chunks"]
+                )
+
+                for warning in replacement_result.get(
+                    "warnings", []
+                ):
+
+                    st.warning(warning)
 
 
-    # ==========================================
-    # MANAGE INDEXED RESEARCH PAPERS
-    # ==========================================
+        st.divider()
 
-    with st.expander("🗑️ Manage Indexed Papers"):
 
-        st.write(
-            "Delete an incorrectly uploaded or unwanted "
-            "research paper and its indexed data."
+
+        discovered = st.session_state.get(
+            "discovered_papers",
+            []
         )
 
-        stored_papers = load_manifest()
+        available_papers = {
+            paper["paper_id"]: paper
+            for paper in discovered
+            if paper.get("pdf_url")
+        }
 
-        if not stored_papers:
+        if not available_papers:
 
             st.info(
-                "No locally stored papers available."
+                "Discover research papers first."
             )
 
         else:
 
-            delete_paper_id = st.selectbox(
-                "Select the paper to delete",
-                options=list(stored_papers.keys()),
+            selected_ids = st.multiselect(
+                "Select research papers",
+                options=list(available_papers.keys()),
                 format_func=lambda pid: (
-                    stored_papers[pid]["title"]
+                    available_papers[pid]["title"]
                 ),
-                key="delete_paper_selector"
+                max_selections=3,
+                key="batch_selected_papers"
             )
 
-            selected_paper = stored_papers[
-                delete_paper_id
-            ]
 
-            paper_filter = models.Filter(
-                must=[
-                    models.FieldCondition(
-                        key="paper_id",
-                        match=models.MatchValue(
-                            value=delete_paper_id
-                        )
-                    )
-                ]
-            )
+            # ==========================================
+            # AUTOMATIC DOWNLOAD, INDEX AND ANALYZE
+            # ==========================================
 
-            vector_count = qdrant.count(
-                collection_name=COLLECTION_NAME,
-                count_filter=paper_filter,
-                exact=True
-            ).count
-
-            st.write(
-                "**Selected paper:**",
-                selected_paper["title"]
-            )
-
-            st.write(
-                "**Indexed passages:**",
-                vector_count
-            )
-
-            st.write(
-                "**Stored PDF:**",
-                selected_paper.get(
-                    "local_pdf", "Not recorded"
-                )
-            )
-
-            st.warning(
-                "Deleting this paper will remove its "
-                "Qdrant vectors, manifest entry, and "
-                "associated local files when safe. "
-                "This action cannot be undone from the app."
-            )
-
-            # Use a paper-specific checkbox key
-            # so confirmation for one paper does
-            # not authorize deleting another.
-            confirm_delete = st.checkbox(
-                "I confirm that I want to delete "
-                "this selected paper.",
-                key=(
-                    "confirm_delete_" +
-                    delete_paper_id.split("/")[-1]
-                )
+            auto_question = st.text_area(
+                "What would you like to investigate?",
+                value=(
+                    "Compare the methodologies, findings, "
+                    "and limitations of these papers. "
+                    "Identify potential research gaps."
+                ),
+                key="auto_research_question"
             )
 
 
             if st.button(
-                "Delete Selected Paper",
-                type="primary",
-                disabled=DEMO_MODE or not confirm_delete,
-                key="delete_indexed_paper_button"
-            ):
-
-
-                try:
-
-                    with st.spinner(
-                        "Deleting selected research paper..."
-                    ):
-
-                        result = delete_indexed_paper(
-                            delete_paper_id,
-                            qdrant
-                        )
-
-                    # Invalidate old analysis results.
-                    st.session_state.pop(
-                        "dynamic_analysis_report", None
-                    )
-
-                    st.session_state.pop(
-                        "auto_analysis_report", None
-                    )
-
-                    # Clear Q&A messages that might
-                    # contain citations to deleted data.
-                    st.session_state.pop(
-                        "messages", None
-                    )
-
-                    st.session_state[
-                        "paper_delete_result"
-                    ] = result
-
-                    st.rerun()
-
-                except Exception as e:
-
-                    st.error(
-                        f"Paper deletion failed: {e}"
-                    )
-
-        # Display deletion result after rerun
-        if "paper_delete_result" in st.session_state:
-
-            result = st.session_state.pop(
-                "paper_delete_result"
-            )
-
-            st.success(
-                f"Deleted: {result['title']}"
-            )
-
-            st.write(
-                "Qdrant vectors removed:",
-                result["deleted_vectors"]
-            )
-
-            st.write(
-                "Local files removed:",
-                len(result["deleted_files"])
-            )
-
-            for warning in result.get("warnings", []):
-                st.warning(warning)
-
-
-        # ==========================================
-        # REPLACE AN EXISTING RESEARCH PDF
-        # ==========================================
-
-        st.divider()
-        st.markdown("### Replace an Existing PDF")
-
-        if stored_papers:
-
-            replace_paper_id = st.selectbox(
-                "Select paper to replace",
-                options=list(stored_papers.keys()),
-                format_func=lambda pid: (
-                    stored_papers[pid]["title"]
-                ),
-                key="replace_paper_selector"
-            )
-
-            replace_short_id = (
-                replace_paper_id.rstrip("/").split("/")[-1]
-            )
-
-
-            replacement_pdf = st.file_uploader(
-                "Upload the corrected research PDF",
-                type=["pdf"],
-                key=f"replace_pdf_{replace_short_id}",
+                "Download, Index & Analyze",
+                key="auto_analyze_button",
                 disabled=DEMO_MODE
+            ):
+
+
+                # Clear previous results
+                st.session_state.pop(
+                    "auto_analysis_report", None
+                )
+
+                if len(selected_ids) < 2:
+
+                    st.warning(
+                        "Please select at least 2 papers."
+                    )
+
+                elif not auto_question.strip():
+
+                    st.warning(
+                        "Please enter a research question."
+                    )
+
+                else:
+
+                    try:
+
+                        with st.status(
+                            "Preparing research papers...",
+                            expanded=True
+                        ) as status:
+
+                            selected_papers = []
+
+                            # --------------------------
+                            # 1. DOWNLOAD AND INDEX
+                            # --------------------------
+
+                            for i, paper_id in enumerate(
+                                selected_ids, start=1
+                            ):
+
+                                paper = available_papers[paper_id]
+
+                                st.write(
+                                    f"Processing {i}/{len(selected_ids)}: "
+                                    f"{paper['title']}"
+                                )
+
+                                result = process_and_index_paper(
+                                    paper,
+                                    embedding_model,
+                                    qdrant
+                                )
+
+                                if result["status"] == "already_indexed":
+
+                                    st.info(
+                                        "Already indexed - reusing vectors."
+                                    )
+
+                                else:
+
+                                    st.success(
+                                        "Paper processed and indexed."
+                                    )
+
+                                # Confirm the paper actually
+                                # has vectors in Qdrant
+
+                                paper_filter = models.Filter(
+                                    must=[
+                                        models.FieldCondition(
+                                            key="paper_id",
+                                            match=models.MatchValue(
+                                                value=paper_id
+                                            )
+                                        )
+                                    ]
+                                )
+
+                                vector_count = qdrant.count(
+                                    collection_name=COLLECTION_NAME,
+                                    count_filter=paper_filter,
+                                    exact=True
+                                ).count
+
+                                if vector_count == 0:
+                                    raise RuntimeError(
+                                        f"No indexed passages found "
+                                        f"for {paper['title']}."
+                                    )
+
+                                st.write(
+                                    f"Indexed passages: {vector_count}"
+                                )
+
+                                selected_papers.append({
+                                    "paper_id": paper_id,
+                                    "title": paper["title"],
+                                    "year": paper.get("year")
+                                })
+
+                            # --------------------------
+                            # 2. RUN RESEARCH ANALYSIS
+                            # --------------------------
+
+                            st.write(
+                                "Retrieving and reviewing evidence..."
+                            )
+
+                            model_name = (
+                                str(GEMINI_MODEL)
+                                .rsplit("=", 1)[-1]
+                                .strip()
+                                .strip("'\"")
+                            )
+
+                            report = run_dynamic_analysis(
+                                papers=selected_papers,
+                                question=auto_question,
+                                qdrant=qdrant,
+                                embedding_model=embedding_model,
+                                gemini=gemini,
+                                model_name=model_name
+                            )
+
+                            st.session_state[
+                                "auto_analysis_report"
+                            ] = report
+
+                            status.update(
+                                label="Research analysis completed",
+                                state="complete",
+                                expanded=False
+                            )
+
+                    except Exception as e:
+
+                        st.error(
+                            f"Automatic analysis failed: {e}"
+                        )
+
+            # ==========================================
+            # DISPLAY AUTOMATIC ANALYSIS RESULTS
+            # ==========================================
+
+            auto_report = st.session_state.get(
+                "auto_analysis_report"
             )
 
-            st.warning(
-                "Replacing a PDF will rebuild its Qdrant index. "
-                "Make sure the uploaded PDF matches "
-                "the selected research paper."
-            )
+            if auto_report:
 
-            confirm_replace = st.checkbox(
-                "I confirm that the uploaded PDF belongs "
-                "to the selected paper.",
-                key=f"confirm_replace_{replace_short_id}"
-            )
+                analysis = auto_report["analysis"]
+
+
+                # ==========================================
+                # EVIDENCE QUALITY DIAGNOSTICS
+                # ==========================================
+
+                with st.expander(
+                    "Evidence Review Diagnostics",
+                    expanded=True
+                ):
+
+                    diagnostic_rows = []
+
+                    for item in auto_report.get(
+                        "reviewed_evidence", []
+                    ):
+
+                        diagnostic_rows.append({
+                            "Evidence ID": item.get("evidence_id"),
+                            "Paper": item.get("paper"),
+                            "Aspect": item.get("aspect"),
+                            "Review": item.get("review_label"),
+                            "Similarity": round(
+                                float(item.get("score") or 0),
+                                4
+                            ),
+                            "Reason": item.get(
+                                "review_reason", ""
+                            )
+                        })
+
+                    if diagnostic_rows:
+
+                        st.dataframe(
+                            diagnostic_rows,
+                            use_container_width=True,
+                            hide_index=True
+                        )
+
+                    else:
+
+                        st.warning(
+                            "No evidence review records found."
+                        )
+
+
+                st.success(
+                    "Evidence-backed research analysis ready!"
+                )
+
+                st.caption(
+                    "Research question: " +
+                    auto_report["question"]
+                )
+
+                # --------------------------
+                # PAPER SUMMARIES
+                # --------------------------
+
+                st.subheader("Research Paper Comparison")
+
+                for aspect in [
+                    "Methodology",
+                    "Findings",
+                    "Limitations"
+                ]:
+
+                    st.markdown(f"### {aspect}")
+
+                    for paper in analysis.get(
+                        "paper_summaries", []
+                    ):
+
+                        st.markdown(
+                            f"**{paper['title']}**"
+                        )
+
+                        entry = paper.get(aspect, {})
+
+                        st.write(
+                            entry.get(
+                                "summary",
+                                "Insufficient evidence."
+                            )
+                        )
+
+                        ids = entry.get("evidence_ids", [])
+
+                        st.caption(
+                            "Evidence: " +
+                            (", ".join(ids) if ids else "None")
+                        )
+
+                    st.divider()
+
+                # --------------------------
+                # SIMILARITIES AND DIFFERENCES
+                # --------------------------
+
+                for heading, key in [
+                    ("Similarities", "similarities"),
+                    ("Differences", "differences")
+                ]:
+
+                    st.subheader(heading)
+
+                    items = analysis.get(key, [])
+
+                    if not items:
+                        st.info(
+                            "Insufficient evidence available."
+                        )
+
+                    for item in items:
+
+                        st.write(item["statement"])
+
+                        st.caption(
+                            "Evidence: " +
+                            ", ".join(item["evidence_ids"])
+                        )
+
+                # --------------------------
+                # POTENTIAL RESEARCH GAPS
+                # --------------------------
+
+                st.subheader("Potential Research Gaps")
+
+                st.info(
+                    "These are candidate research directions, "
+                    "not independently verified novel gaps."
+                )
+
+                gaps = analysis.get(
+                    "potential_research_gaps", []
+                )
+
+                if not gaps:
+                    st.warning(
+                        "No sufficiently supported research "
+                        "directions identified."
+                    )
+
+                for i, gap in enumerate(gaps, 1):
+
+                    st.markdown(
+                        f"### Research Direction {i}"
+                    )
+
+                    st.write(gap["hypothesis"])
+
+                    st.markdown("**Rationale**")
+                    st.write(gap["rationale"])
+
+                    st.markdown("**Verification needed**")
+                    st.write(gap["needs_verification"])
+
+                    st.caption(
+                        "Evidence: " +
+                        ", ".join(gap["evidence_ids"])
+                    )
+
+                # --------------------------
+                # SUPPORTING EVIDENCE
+                # --------------------------
+
+                st.subheader("Supporting Evidence")
+
+                for item in auto_report["reviewed_evidence"]:
+
+                    if item["review_label"] not in {
+                        "useful", "partial"
+                    }:
+                        continue
+
+                    with st.expander(
+                        f"{item['evidence_id']} | "
+                        f"{item['paper']} | "
+                        f"{item['aspect']}"
+                    ):
+
+                        st.write(
+                            "Quality:",
+                            item["review_label"]
+                        )
+
+                        st.write(item["text"])
+
+                        if item.get("source_url"):
+                            st.link_button(
+                                "Open source paper",
+                                item["source_url"]
+                            )
+
 
 
             if st.button(
-                "Replace PDF & Reindex",
-                disabled=(
-                    DEMO_MODE
-                    or replacement_pdf is None
-                    or not confirm_replace
-                ),
-                key="replace_pdf_button"
+                "Download and Index Selected Papers",
+                key="batch_index_button",
+                disabled=DEMO_MODE
             ):
-
-
-                created_pdf = False
-                saved_pdf_path = None
-
-
-                try:
-
-                    require_write_permission(
-                        "Replacing research PDFs"
+                if DEMO_MODE:
+                    st.info(
+                        "Public demo mode: Downloading and indexing new papers "
+                        "is disabled. Use the two preloaded research papers "
+                        "under Compare & Analyze Research instead."
                     )
 
-                    pdf_bytes = replacement_pdf.getvalue()
+                if not selected_ids:
 
-
-                    if not pdf_bytes.startswith(b"%PDF-"):
-                        raise ValueError(
-                            "Invalid PDF file."
-                        )
-
-                    if len(pdf_bytes) > 50 * 1024 * 1024:
-                        raise ValueError(
-                            "PDF exceeds the 50 MB limit."
-                        )
-
-                    pdf_dir = BASE_DIR / "data" / "pdfs"
-
-                    pdf_dir.mkdir(
-                        parents=True,
-                        exist_ok=True
+                    st.warning(
+                        "Please select at least one paper."
                     )
 
-                    checksum = hashlib.sha256(
-                        pdf_bytes
-                    ).hexdigest()[:12]
+                else:
 
-                    saved_pdf_path = (
-                        pdf_dir /
-                        f"{replace_short_id}_{checksum}.pdf"
-                    )
-
-                    if not saved_pdf_path.exists():
-
-                        saved_pdf_path.write_bytes(
-                            pdf_bytes
-                        )
-
-                        created_pdf = True
-
-                    elif saved_pdf_path.read_bytes() != pdf_bytes:
-
-                        raise RuntimeError(
-                            "Stored PDF checksum collision."
-                        )
-
-                    # ----------------------------------
-                    # RUN REPLACEMENT BACKEND
-                    # ----------------------------------
-
-                    with st.spinner(
-                        "Replacing PDF and rebuilding index..."
-                    ):
-
-                        result = replace_indexed_paper(
-                            paper_id=replace_paper_id,
-                            uploaded_pdf_path=saved_pdf_path,
-                            embedding_model=embedding_model,
-                            qdrant=qdrant
-                        )
-
-                    # Clear old research reports
-                    for key in (
-                        "dynamic_analysis_report",
-                        "auto_analysis_report",
-                        "messages"
-                    ):
-
-                        st.session_state.pop(
-                            key, None
-                        )
-
-                    st.session_state[
-                        "paper_replace_result"
-                    ] = result
-
-                    st.rerun()
-
-                except Exception as e:
-
-                    # Delete a newly saved PDF only
-                    # if the replacement did not succeed.
-                    if (
-                        created_pdf
-                        and saved_pdf_path is not None
-                    ):
-
-                        saved_pdf_path.unlink(
-                            missing_ok=True
-                        )
-
-                    st.error(
-                        f"PDF replacement failed: {e}"
-                    )
-
-        # ==========================================
-        # DISPLAY REPLACEMENT RESULT
-        # ==========================================
-
-        if "paper_replace_result" in st.session_state:
-
-            replacement_result = st.session_state.pop(
-                "paper_replace_result"
-            )
-
-            st.success(
-                "Research PDF replaced successfully!"
-            )
-
-            st.write(
-                "Paper:",
-                replacement_result["title"]
-            )
-
-            col1, col2 = st.columns(2)
-
-            col1.metric(
-                "Previous Vectors",
-                replacement_result["old_vectors"]
-            )
-
-            col2.metric(
-                "New Vectors",
-                replacement_result["new_vectors"]
-            )
-
-            st.write(
-                "Pages:",
-                replacement_result["pages"]
-            )
-
-            st.write(
-                "Chunks:",
-                replacement_result["chunks"]
-            )
-
-            for warning in replacement_result.get(
-                "warnings", []
-            ):
-
-                st.warning(warning)
-
-
-    st.divider()
-
-
-
-    discovered = st.session_state.get(
-        "discovered_papers",
-        []
-    )
-
-    available_papers = {
-        paper["paper_id"]: paper
-        for paper in discovered
-        if paper.get("pdf_url")
-    }
-
-    if not available_papers:
-
-        st.info(
-            "Discover research papers first."
-        )
-
-    else:
-
-        selected_ids = st.multiselect(
-            "Select research papers",
-            options=list(available_papers.keys()),
-            format_func=lambda pid: (
-                available_papers[pid]["title"]
-            ),
-            max_selections=3,
-            key="batch_selected_papers"
-        )
-
-
-        # ==========================================
-        # AUTOMATIC DOWNLOAD, INDEX AND ANALYZE
-        # ==========================================
-
-        auto_question = st.text_area(
-            "What would you like to investigate?",
-            value=(
-                "Compare the methodologies, findings, "
-                "and limitations of these papers. "
-                "Identify potential research gaps."
-            ),
-            key="auto_research_question"
-        )
-
-
-        if st.button(
-            "Download, Index & Analyze",
-            key="auto_analyze_button",
-            disabled=DEMO_MODE
-        ):
-
-
-            # Clear previous results
-            st.session_state.pop(
-                "auto_analysis_report", None
-            )
-
-            if len(selected_ids) < 2:
-
-                st.warning(
-                    "Please select at least 2 papers."
-                )
-
-            elif not auto_question.strip():
-
-                st.warning(
-                    "Please enter a research question."
-                )
-
-            else:
-
-                try:
+                    indexed_count = 0
+                    skipped_count = 0
+                    failed_count = 0
 
                     with st.status(
-                        "Preparing research papers...",
+                        "Processing selected research papers...",
                         expanded=True
                     ) as status:
 
-                        selected_papers = []
-
-                        # --------------------------
-                        # 1. DOWNLOAD AND INDEX
-                        # --------------------------
+                        progress = st.progress(0)
 
                         for i, paper_id in enumerate(
-                            selected_ids, start=1
+                            selected_ids,
+                            start=1
                         ):
 
                             paper = available_papers[paper_id]
@@ -1474,434 +1819,90 @@ with download_section, st.expander("⬇️ Download & Index Papers"):
                                 f"{paper['title']}"
                             )
 
-                            result = process_and_index_paper(
-                                paper,
-                                embedding_model,
-                                qdrant
-                            )
+                            try:
 
-                            if result["status"] == "already_indexed":
-
-                                st.info(
-                                    "Already indexed - reusing vectors."
+                                result = process_and_index_paper(
+                                    paper,
+                                    embedding_model,
+                                    qdrant
                                 )
 
-                            else:
+                                if result["status"] == "already_indexed":
 
-                                st.success(
-                                    "Paper processed and indexed."
-                                )
+                                    skipped_count += 1
 
-                            # Confirm the paper actually
-                            # has vectors in Qdrant
-
-                            paper_filter = models.Filter(
-                                must=[
-                                    models.FieldCondition(
-                                        key="paper_id",
-                                        match=models.MatchValue(
-                                            value=paper_id
-                                        )
+                                    st.info(
+                                        "Already indexed — skipped."
                                     )
-                                ]
-                            )
 
-                            vector_count = qdrant.count(
-                                collection_name=COLLECTION_NAME,
-                                count_filter=paper_filter,
-                                exact=True
-                            ).count
+                                else:
 
-                            if vector_count == 0:
-                                raise RuntimeError(
-                                    f"No indexed passages found "
-                                    f"for {paper['title']}."
+                                    indexed_count += 1
+
+                                    st.success(
+                                        f"Indexed {result['passages']} passages."
+                                    )
+
+                                    st.write(
+                                        "Pages:",
+                                        result["pages"],
+                                        "| Chunks:",
+                                        result["chunks"]
+                                    )
+
+                            except Exception as e:
+
+                                failed_count += 1
+
+                                st.error(
+                                    f"Failed to process {paper['title']}: {e}"
                                 )
 
-                            st.write(
-                                f"Indexed passages: {vector_count}"
+                            progress.progress(
+                                i / len(selected_ids)
                             )
-
-                            selected_papers.append({
-                                "paper_id": paper_id,
-                                "title": paper["title"],
-                                "year": paper.get("year")
-                            })
-
-                        # --------------------------
-                        # 2. RUN RESEARCH ANALYSIS
-                        # --------------------------
-
-                        st.write(
-                            "Retrieving and reviewing evidence..."
-                        )
-
-                        model_name = (
-                            str(GEMINI_MODEL)
-                            .rsplit("=", 1)[-1]
-                            .strip()
-                            .strip("'\"")
-                        )
-
-                        report = run_dynamic_analysis(
-                            papers=selected_papers,
-                            question=auto_question,
-                            qdrant=qdrant,
-                            embedding_model=embedding_model,
-                            gemini=gemini,
-                            model_name=model_name
-                        )
-
-                        st.session_state[
-                            "auto_analysis_report"
-                        ] = report
 
                         status.update(
-                            label="Research analysis completed",
-                            state="complete",
-                            expanded=False
+                            label="Batch processing finished",
+                            state="error" if failed_count else "complete",
+                            expanded=True
                         )
 
-                except Exception as e:
+                    # ==================================
+                    # DISPLAY FINAL SUMMARY
+                    # ==================================
 
-                    st.error(
-                        f"Automatic analysis failed: {e}"
-                    )
+                    st.subheader("Batch Indexing Summary")
 
-        # ==========================================
-        # DISPLAY AUTOMATIC ANALYSIS RESULTS
-        # ==========================================
+                    col1, col2, col3 = st.columns(3)
 
-        auto_report = st.session_state.get(
-            "auto_analysis_report"
-        )
-
-        if auto_report:
-
-            analysis = auto_report["analysis"]
-
-
-            # ==========================================
-            # EVIDENCE QUALITY DIAGNOSTICS
-            # ==========================================
-
-            with st.expander(
-                "Evidence Review Diagnostics",
-                expanded=True
-            ):
-
-                diagnostic_rows = []
-
-                for item in auto_report.get(
-                    "reviewed_evidence", []
-                ):
-
-                    diagnostic_rows.append({
-                        "Evidence ID": item.get("evidence_id"),
-                        "Paper": item.get("paper"),
-                        "Aspect": item.get("aspect"),
-                        "Review": item.get("review_label"),
-                        "Similarity": round(
-                            float(item.get("score") or 0),
-                            4
-                        ),
-                        "Reason": item.get(
-                            "review_reason", ""
-                        )
-                    })
-
-                if diagnostic_rows:
-
-                    st.dataframe(
-                        diagnostic_rows,
-                        use_container_width=True,
-                        hide_index=True
-                    )
-
-                else:
-
-                    st.warning(
-                        "No evidence review records found."
-                    )
-
-
-            st.success(
-                "Evidence-backed research analysis ready!"
-            )
-
-            st.caption(
-                "Research question: " +
-                auto_report["question"]
-            )
-
-            # --------------------------
-            # PAPER SUMMARIES
-            # --------------------------
-
-            st.subheader("Research Paper Comparison")
-
-            for aspect in [
-                "Methodology",
-                "Findings",
-                "Limitations"
-            ]:
-
-                st.markdown(f"### {aspect}")
-
-                for paper in analysis.get(
-                    "paper_summaries", []
-                ):
-
-                    st.markdown(
-                        f"**{paper['title']}**"
-                    )
-
-                    entry = paper.get(aspect, {})
-
-                    st.write(
-                        entry.get(
-                            "summary",
-                            "Insufficient evidence."
-                        )
-                    )
-
-                    ids = entry.get("evidence_ids", [])
-
-                    st.caption(
-                        "Evidence: " +
-                        (", ".join(ids) if ids else "None")
-                    )
-
-                st.divider()
-
-            # --------------------------
-            # SIMILARITIES AND DIFFERENCES
-            # --------------------------
-
-            for heading, key in [
-                ("Similarities", "similarities"),
-                ("Differences", "differences")
-            ]:
-
-                st.subheader(heading)
-
-                items = analysis.get(key, [])
-
-                if not items:
-                    st.info(
-                        "Insufficient evidence available."
-                    )
-
-                for item in items:
-
-                    st.write(item["statement"])
-
-                    st.caption(
-                        "Evidence: " +
-                        ", ".join(item["evidence_ids"])
-                    )
-
-            # --------------------------
-            # POTENTIAL RESEARCH GAPS
-            # --------------------------
-
-            st.subheader("Potential Research Gaps")
-
-            st.info(
-                "These are candidate research directions, "
-                "not independently verified novel gaps."
-            )
-
-            gaps = analysis.get(
-                "potential_research_gaps", []
-            )
-
-            if not gaps:
-                st.warning(
-                    "No sufficiently supported research "
-                    "directions identified."
-                )
-
-            for i, gap in enumerate(gaps, 1):
-
-                st.markdown(
-                    f"### Research Direction {i}"
-                )
-
-                st.write(gap["hypothesis"])
-
-                st.markdown("**Rationale**")
-                st.write(gap["rationale"])
-
-                st.markdown("**Verification needed**")
-                st.write(gap["needs_verification"])
-
-                st.caption(
-                    "Evidence: " +
-                    ", ".join(gap["evidence_ids"])
-                )
-
-            # --------------------------
-            # SUPPORTING EVIDENCE
-            # --------------------------
-
-            st.subheader("Supporting Evidence")
-
-            for item in auto_report["reviewed_evidence"]:
-
-                if item["review_label"] not in {
-                    "useful", "partial"
-                }:
-                    continue
-
-                with st.expander(
-                    f"{item['evidence_id']} | "
-                    f"{item['paper']} | "
-                    f"{item['aspect']}"
-                ):
-
-                    st.write(
-                        "Quality:",
-                        item["review_label"]
-                    )
-
-                    st.write(item["text"])
-
-                    if item.get("source_url"):
-                        st.link_button(
-                            "Open source paper",
-                            item["source_url"]
+                    with col1:
+                        st.metric(
+                            "Newly Indexed",
+                            indexed_count
                         )
 
-
-
-        if st.button(
-            "Download and Index Selected Papers",
-            key="batch_index_button",
-            disabled=DEMO_MODE
-        ):
-            if DEMO_MODE:
-                st.info(
-                    "Public demo mode: Downloading and indexing new papers "
-                    "is disabled. Use the two preloaded research papers "
-                    "under Compare & Analyze Research instead."
-                )
-
-            if not selected_ids:
-
-                st.warning(
-                    "Please select at least one paper."
-                )
-
-            else:
-
-                indexed_count = 0
-                skipped_count = 0
-                failed_count = 0
-
-                with st.status(
-                    "Processing selected research papers...",
-                    expanded=True
-                ) as status:
-
-                    progress = st.progress(0)
-
-                    for i, paper_id in enumerate(
-                        selected_ids,
-                        start=1
-                    ):
-
-                        paper = available_papers[paper_id]
-
-                        st.write(
-                            f"Processing {i}/{len(selected_ids)}: "
-                            f"{paper['title']}"
+                    with col2:
+                        st.metric(
+                            "Already Indexed",
+                            skipped_count
                         )
 
-                        try:
-
-                            result = process_and_index_paper(
-                                paper,
-                                embedding_model,
-                                qdrant
-                            )
-
-                            if result["status"] == "already_indexed":
-
-                                skipped_count += 1
-
-                                st.info(
-                                    "Already indexed — skipped."
-                                )
-
-                            else:
-
-                                indexed_count += 1
-
-                                st.success(
-                                    f"Indexed {result['passages']} passages."
-                                )
-
-                                st.write(
-                                    "Pages:",
-                                    result["pages"],
-                                    "| Chunks:",
-                                    result["chunks"]
-                                )
-
-                        except Exception as e:
-
-                            failed_count += 1
-
-                            st.error(
-                                f"Failed to process {paper['title']}: {e}"
-                            )
-
-                        progress.progress(
-                            i / len(selected_ids)
+                    with col3:
+                        st.metric(
+                            "Failed",
+                            failed_count
                         )
 
-                    status.update(
-                        label="Batch processing finished",
-                        state="error" if failed_count else "complete",
-                        expanded=True
-                    )
+                    total_vectors = qdrant.count(
+                        collection_name=COLLECTION_NAME,
+                        exact=True
+                    ).count
 
-                # ==================================
-                # DISPLAY FINAL SUMMARY
-                # ==================================
-
-                st.subheader("Batch Indexing Summary")
-
-                col1, col2, col3 = st.columns(3)
-
-                with col1:
                     st.metric(
-                        "Newly Indexed",
-                        indexed_count
+                        "Total Qdrant Vectors",
+                        total_vectors
                     )
-
-                with col2:
-                    st.metric(
-                        "Already Indexed",
-                        skipped_count
-                    )
-
-                with col3:
-                    st.metric(
-                        "Failed",
-                        failed_count
-                    )
-
-                total_vectors = qdrant.count(
-                    collection_name=COLLECTION_NAME,
-                    exact=True
-                ).count
-
-                st.metric(
-                    "Total Qdrant Vectors",
-                    total_vectors
-                )
 
 
 
