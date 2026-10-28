@@ -313,9 +313,16 @@ try:
 
 
 
+
 except Exception as e:
+    import traceback
+
+    # Print full details to Streamlit server logs.
+    traceback.print_exc()
+
     st.error(f"Initialization failed: {e}")
     st.stop()
+
 
 gemini = genai.Client(api_key=API_KEY)
 # Reserve space for the unified download section
